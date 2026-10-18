@@ -79,6 +79,22 @@ export default function RegisterPage() {
           <p className="text-xs text-slate-500">Join researchers and students discovering open knowledge.</p>
         </div>
 
+        {/* Primary Google Sign-Up Option */}
+        <div className="space-y-4">
+          <GoogleSignInButton
+            label="Sign Up with Google"
+            redirectTo="/dashboard"
+            isSignUp={true}
+          />
+
+          <div className="relative flex items-center justify-center">
+            <div className="border-t border-slate-200 w-full" />
+            <span className="bg-white px-3 text-[11px] text-slate-400 uppercase font-semibold">
+              Or Register with Email
+            </span>
+          </div>
+        </div>
+
         <form onSubmit={handleRegister} className="space-y-4 text-xs">
           <div>
             <label className="font-semibold text-slate-700 block mb-1">Full Name</label>
@@ -186,14 +202,6 @@ export default function RegisterPage() {
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </form>
-
-        <div className="relative flex items-center justify-center">
-          <div className="border-t border-slate-200 w-full" />
-          <span className="bg-white px-3 text-[11px] text-slate-400 uppercase font-semibold">Or Register With</span>
-        </div>
-
-        {/* Google Sign-In */}
-        <GoogleSignInButton label="Sign Up with Google" redirectTo="/dashboard" />
 
         <p className="text-center text-xs text-slate-500">
           Already have an account?{' '}

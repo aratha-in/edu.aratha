@@ -261,10 +261,10 @@ export default function Navbar() {
                   Sign In
                 </Link>
                 <Link
-                  href="/dashboard"
+                  href="/register"
                   className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold shadow-xs shadow-blue-500/20 transition-all hover:shadow"
                 >
-                  Start Learning Free
+                  Sign Up Free
                 </Link>
               </div>
             )}

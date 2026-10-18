@@ -5,24 +5,29 @@ import { useRouter } from 'next/navigation';
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 import { setCurrentUser, getAuthorizedAdmins } from '@/lib/storage';
 import { UserProfile } from '@/types';
-import { X, ArrowRight, RefreshCw } from 'lucide-react';
+import { X, ArrowRight, RefreshCw, GraduationCap, Microscope, BookOpen } from 'lucide-react';
 
 interface GoogleSignInButtonProps {
   label?: string;
   redirectTo?: string;
   className?: string;
+  isSignUp?: boolean;
 }
 
 export default function GoogleSignInButton({
   label = 'Continue with Google',
   redirectTo = '/dashboard',
-  className = ''
+  className = '',
+  isSignUp = false
 }: GoogleSignInButtonProps) {
   const router = useRouter();
   const [isOpenModal, setIsOpenModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [userName, setUserName] = useState('');
+  const [academicRole, setAcademicRole] = useState<'student' | 'researcher' | 'faculty'>('researcher');
+
+  const isRegisterMode = isSignUp || label.toLowerCase().includes('sign up') || label.toLowerCase().includes('register');
 
   // Check if current user on THIS specific browser has a saved Google account
   useEffect(() => {
@@ -103,6 +108,14 @@ export default function GoogleSignInButton({
     );
     const isAdmin = Boolean(matchedAdmin || emailLower === 'admin@edu.aratha.org');
 
+    const assignedRole = isAdmin
+      ? 'admin'
+      : isRegisterMode
+      ? academicRole === 'student'
+        ? 'user'
+        : 'researcher'
+      : 'researcher';
+
     const googleUser: UserProfile = matchedAdmin || {
       id: isAdmin ? `usr-admin-${Date.now()}` : `usr-g-${Date.now()}`,
       name: account.name.trim() || emailLower.split('@')[0],
@@ -110,8 +123,10 @@ export default function GoogleSignInButton({
       institution: emailLower.endsWith('.edu') || emailLower.endsWith('.ac.in')
         ? 'Academic Institution (Google Workspace)'
         : 'Google Authenticated Scholar',
-      role: isAdmin ? 'admin' : 'researcher',
-      bio: 'Verified scholar authenticated via Google Identity Services.',
+      role: assignedRole,
+      bio: isRegisterMode
+        ? `Registered ${academicRole} authenticated via Google Identity Services.`
+        : 'Verified scholar authenticated via Google Identity Services.',
       joinedAt: new Date().toISOString().split('T')[0],
       emailVerified: true // Pre-verified by Google OAuth
     };
@@ -181,7 +196,7 @@ export default function GoogleSignInButton({
         <span className="group-hover:text-slate-900">{label}</span>
       </button>
 
-      {/* Google Account Sign-In Modal */}
+      {/* Google Account Modal */}
       {isOpenModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150">
@@ -207,8 +222,12 @@ export default function GoogleSignInButton({
                   />
                 </svg>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">Sign in with Google</h3>
-                  <p className="text-[11px] text-slate-500">to continue to Edu.aratha Platform</p>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    {isRegisterMode ? 'Sign up with Google' : 'Sign in with Google'}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    {isRegisterMode ? 'Create your free verified account' : 'to continue to Edu.aratha Platform'}
+                  </p>
                 </div>
               </div>
               <button
@@ -231,7 +250,7 @@ export default function GoogleSignInButton({
                   required
                   value={userEmail}
                   onChange={(e) => setUserEmail(e.target.value)}
-                  placeholder="yourname@gmail.com"
+                  placeholder="yourname@gmail.com or university email"
                   className="w-full py-2.5 px-3 rounded-xl border border-slate-300 text-slate-900 font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-xs"
                   autoFocus
                 />
@@ -252,7 +271,7 @@ export default function GoogleSignInButton({
 
               <div>
                 <label className="font-semibold text-slate-700 block mb-1">
-                  Your Name <span className="font-normal text-slate-400">(optional)</span>
+                  Your Full Name <span className="font-normal text-slate-400">(optional)</span>
                 </label>
                 <input
                   type="text"
@@ -262,6 +281,52 @@ export default function GoogleSignInButton({
                   className="w-full py-2.5 px-3 rounded-xl border border-slate-300 text-slate-900 text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-xs"
                 />
               </div>
+
+              {isRegisterMode && (
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">
+                    Your Primary Academic Role
+                  </label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setAcademicRole('student')}
+                      className={`py-2 px-2 rounded-lg border text-center transition-all flex flex-col items-center gap-1 ${
+                        academicRole === 'student'
+                          ? 'border-blue-600 bg-blue-50 text-blue-700 font-bold'
+                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <GraduationCap className="w-3.5 h-3.5" />
+                      <span className="text-[10px]">Student</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAcademicRole('researcher')}
+                      className={`py-2 px-2 rounded-lg border text-center transition-all flex flex-col items-center gap-1 ${
+                        academicRole === 'researcher'
+                          ? 'border-blue-600 bg-blue-50 text-blue-700 font-bold'
+                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <Microscope className="w-3.5 h-3.5" />
+                      <span className="text-[10px]">Researcher</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAcademicRole('faculty')}
+                      className={`py-2 px-2 rounded-lg border text-center transition-all flex flex-col items-center gap-1 ${
+                        academicRole === 'faculty'
+                          ? 'border-blue-600 bg-blue-50 text-blue-700 font-bold'
+                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <BookOpen className="w-3.5 h-3.5" />
+                      <span className="text-[10px]">Faculty</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="flex items-center gap-2 pt-2">
                 <button
@@ -280,7 +345,7 @@ export default function GoogleSignInButton({
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                   ) : (
                     <>
-                      <span>Continue</span>
+                      <span>{isRegisterMode ? 'Create Free Account' : 'Continue'}</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </>
                   )}
@@ -289,7 +354,7 @@ export default function GoogleSignInButton({
             </form>
 
             <div className="pt-2 border-t border-slate-100 text-[10px] text-slate-400 text-center leading-relaxed">
-              Google will verify your identity and share your email address and profile name with Edu.aratha.
+              Google will verify your identity and share your email address and profile name with Edu.aratha. Pre-verified email access is granted automatically.
             </div>
           </div>
         </div>
