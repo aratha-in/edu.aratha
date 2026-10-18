@@ -14,16 +14,22 @@ export default function LoginPage() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
+    const isAdmin =
+      email.toLowerCase().includes('admin') ||
+      password === 'aratha-admin-2026' ||
+      password === 'admin123' ||
+      password === 'aratha@admin';
+
     const demoUser: UserProfile = {
-      id: `usr-${Date.now()}`,
-      name: email.split('@')[0] || 'Scholar',
-      email: email || 'scholar@edu.aratha.org',
-      institution: 'Academic Researcher',
-      role: 'researcher',
+      id: isAdmin ? `usr-admin-${Date.now()}` : `usr-${Date.now()}`,
+      name: isAdmin ? 'Platform Administrator' : (email.split('@')[0] || 'Scholar'),
+      email: email || (isAdmin ? 'admin@edu.aratha.org' : 'scholar@edu.aratha.org'),
+      institution: isAdmin ? 'Edu.aratha Governance & Verification Board' : 'Academic Researcher',
+      role: isAdmin ? 'admin' : 'researcher',
       joinedAt: new Date().toISOString().split('T')[0]
     };
     setCurrentUser(demoUser);
-    router.push('/dashboard');
+    router.push(isAdmin ? '/admin' : '/dashboard');
   };
 
   const handleInstantDemo = () => {
@@ -38,6 +44,20 @@ export default function LoginPage() {
     };
     setCurrentUser(demoUser);
     router.push('/dashboard');
+  };
+
+  const handleAdminLogin = () => {
+    const adminUser: UserProfile = {
+      id: 'usr-admin-01',
+      name: 'Chief Repository Curator',
+      email: 'admin@edu.aratha.org',
+      institution: 'Edu.aratha Governance & Verification Board',
+      role: 'admin',
+      bio: 'Verified platform administrator with full repository curation authority.',
+      joinedAt: '2026-01-01'
+    };
+    setCurrentUser(adminUser);
+    router.push('/admin');
   };
 
   return (
@@ -94,13 +114,23 @@ export default function LoginPage() {
         </div>
 
         {/* Demo Fast Login */}
-        <button
-          onClick={handleInstantDemo}
-          className="w-full py-2.5 px-3 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-semibold transition-colors flex items-center justify-center gap-2"
-        >
-          <User className="w-4 h-4 text-blue-600" />
-          Instant Demo Scholar Sign-In (Ananya Sharma • IIT Delhi)
-        </button>
+        <div className="space-y-2">
+          <button
+            onClick={handleInstantDemo}
+            className="w-full py-2.5 px-3 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-semibold transition-colors flex items-center justify-center gap-2"
+          >
+            <User className="w-4 h-4 text-blue-600" />
+            Instant Demo Scholar Sign-In (Ananya Sharma • IIT Delhi)
+          </button>
+
+          <button
+            onClick={handleAdminLogin}
+            className="w-full py-2.5 px-3 rounded-xl border border-amber-300/80 bg-amber-50 hover:bg-amber-100/80 text-amber-900 text-xs font-semibold transition-colors flex items-center justify-center gap-2"
+          >
+            <ShieldCheck className="w-4 h-4 text-amber-600" />
+            Administrator Clearance Sign-In (Admin Portal)
+          </button>
+        </div>
 
         <p className="text-center text-xs text-slate-500">
           Don&apos;t have an account?{' '}

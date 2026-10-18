@@ -103,7 +103,7 @@ export default function Footer() {
                 <Link href="/projects" className="hover:text-white transition-colors">Research Projects</Link>
               </li>
               <li>
-                <Link href="/admin" className="hover:text-white transition-colors">Resource Verification</Link>
+                <Link href="/about" className="hover:text-white transition-colors">Verification Standards</Link>
               </li>
             </ul>
           </div>

@@ -32,7 +32,14 @@ export default function Navbar() {
   const [resourcesMenuOpen, setResourcesMenuOpen] = useState(false);
 
   useEffect(() => {
-    setUser(getCurrentUser());
+    const updateUser = () => setUser(getCurrentUser());
+    updateUser();
+    window.addEventListener('edu_aratha_auth_change', updateUser);
+    window.addEventListener('storage', updateUser);
+    return () => {
+      window.removeEventListener('edu_aratha_auth_change', updateUser);
+      window.removeEventListener('storage', updateUser);
+    };
   }, []);
 
   const navLinks = [
@@ -88,11 +95,15 @@ export default function Navbar() {
           </div>
           <div className="flex items-center gap-2 sm:gap-3 text-slate-300 text-[11px] shrink-0">
             <Link href="/about" className="hover:text-white transition-colors">Why Free?</Link>
-            <span>•</span>
-            <Link href="/admin" className="hover:text-amber-300 text-amber-200 flex items-center gap-1 transition-colors">
-              <ShieldCheck className="w-3 h-3" />
-              <span>Admin</span>
-            </Link>
+            {user?.role === 'admin' && (
+              <>
+                <span>•</span>
+                <Link href="/admin" className="hover:text-amber-300 text-amber-200 flex items-center gap-1 transition-colors">
+                  <ShieldCheck className="w-3 h-3" />
+                  <span>Admin</span>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -219,13 +230,15 @@ export default function Navbar() {
                       <FolderGit2 className="w-3.5 h-3.5 text-slate-400" />
                       Research Projects
                     </Link>
-                    <Link
-                      href="/admin"
-                      className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-amber-700 hover:bg-amber-50"
-                    >
-                      <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
-                      Admin Verification
-                    </Link>
+                    {user?.role === 'admin' && (
+                      <Link
+                        href="/admin"
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-amber-700 hover:bg-amber-50"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
+                        Admin Verification
+                      </Link>
+                    )}
                     <div className="border-t border-slate-100 my-1" />
                     <button
                       onClick={() => {
@@ -389,14 +402,16 @@ export default function Navbar() {
               <FolderGit2 className="w-3.5 h-3.5 text-slate-500" />
               <span>Research Projects</span>
             </Link>
-            <Link
-              href="/admin"
-              onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-center gap-1.5 w-full py-2 px-4 rounded-xl border border-amber-300 text-amber-800 bg-amber-50 font-medium text-xs"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
-              <span>Admin Verification Portal</span>
-            </Link>
+            {user?.role === 'admin' && (
+              <Link
+                href="/admin"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center justify-center gap-1.5 w-full py-2 px-4 rounded-xl border border-amber-300 text-amber-800 bg-amber-50 font-medium text-xs"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                <span>Admin Verification Portal</span>
+              </Link>
+            )}
           </div>
         </div>
       )}
