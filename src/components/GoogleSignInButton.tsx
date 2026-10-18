@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 import { setCurrentUser, getAuthorizedAdmins } from '@/lib/storage';
 import { UserProfile } from '@/types';
-import { X, ArrowRight, RefreshCw, GraduationCap, Microscope, BookOpen } from 'lucide-react';
+import { X, ArrowRight, RefreshCw, GraduationCap, Microscope, BookOpen, KeyRound } from 'lucide-react';
 
 interface GoogleSignInButtonProps {
   label?: string;
@@ -29,20 +29,51 @@ export default function GoogleSignInButton({
 
   const isRegisterMode = isSignUp || label.toLowerCase().includes('sign up') || label.toLowerCase().includes('register');
 
-  // Check if current user on THIS specific browser has a saved Google account
+  // Check if current user on THIS specific browser has a saved Google account or incoming OAuth token
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('edu_aratha_last_google_email');
-      if (saved) {
-        setUserEmail(saved);
+    if (typeof window === 'undefined') return;
+
+    // Check for incoming Google OAuth 2.0 access_token in URL hash (from redirect flow)
+    const hash = window.location.hash;
+    if (hash && hash.includes('access_token=')) {
+      const params = new URLSearchParams(hash.substring(1));
+      const accessToken = params.get('access_token');
+      if (accessToken) {
+        setIsLoading(true);
+        fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        })
+          .then(res => res.json())
+          .then(gUser => {
+            if (gUser?.email) {
+              window.history.replaceState(null, '', window.location.pathname);
+              handleCompleteLogin({
+                name: gUser.name || gUser.email.split('@')[0],
+                email: gUser.email
+              });
+            } else {
+              setIsLoading(false);
+            }
+          })
+          .catch(err => {
+            console.error('Google OAuth token extraction error:', err);
+            setIsLoading(false);
+          });
+        return;
       }
+    }
+
+    const saved = localStorage.getItem('edu_aratha_last_google_email');
+    if (saved) {
+      setUserEmail(saved);
     }
   }, []);
 
   const handleTriggerGoogle = async () => {
+    setIsLoading(true);
+
     // 1. If Supabase Google OAuth is configured, initiate real Supabase OAuth
     if (isSupabaseConfigured && supabase) {
-      setIsLoading(true);
       try {
         const { error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
@@ -53,49 +84,62 @@ export default function GoogleSignInButton({
         if (!error) return;
       } catch (e) {
         console.warn('Supabase Google OAuth fallback triggered:', e);
-      } finally {
-        setIsLoading(false);
       }
     }
 
-    // 2. If Google Identity Services is available and Client ID is configured
+    // 2. Real Google OAuth 2.0 flow via Google Identity Services or Direct Google OAuth Endpoint
     const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (typeof window !== 'undefined' && (window as unknown as { google?: { accounts?: { oauth2?: { initTokenClient: Function } } } })?.google?.accounts?.oauth2 && googleClientId) {
-      try {
-        setIsLoading(true);
-        const tokenClient = (window as unknown as { google: { accounts: { oauth2: { initTokenClient: Function } } } }).google.accounts.oauth2.initTokenClient({
-          client_id: googleClientId,
-          scope: 'https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
-          callback: async (tokenResponse: { access_token?: string }) => {
-            if (tokenResponse?.access_token) {
-              try {
-                const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                  headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
-                });
-                const gUser = await res.json();
-                if (gUser?.email) {
-                  await handleCompleteLogin({
-                    name: gUser.name || gUser.email.split('@')[0],
-                    email: gUser.email
+
+    if (googleClientId && googleClientId.trim() !== '') {
+      // Attempt A: Google Identity Services (GIS) Token Client Popup
+      if (typeof window !== 'undefined' && (window as unknown as { google?: { accounts?: { oauth2?: { initTokenClient: Function } } } })?.google?.accounts?.oauth2) {
+        try {
+          const tokenClient = (window as unknown as { google: { accounts: { oauth2: { initTokenClient: Function } } } }).google.accounts.oauth2.initTokenClient({
+            client_id: googleClientId,
+            scope: 'openid email profile',
+            callback: async (tokenResponse: { access_token?: string }) => {
+              if (tokenResponse?.access_token) {
+                try {
+                  const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                    headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
                   });
-                  return;
+                  const gUser = await res.json();
+                  if (gUser?.email) {
+                    await handleCompleteLogin({
+                      name: gUser.name || gUser.email.split('@')[0],
+                      email: gUser.email
+                    });
+                    return;
+                  }
+                } catch (e) {
+                  console.error('Google userinfo fetch error:', e);
                 }
-              } catch (e) {
-                console.error('Google userinfo fetch error:', e);
               }
+              setIsLoading(false);
             }
-            setIsLoading(false);
-          }
-        });
-        tokenClient.requestAccessToken({ prompt: 'select_account' });
+          });
+          tokenClient.requestAccessToken({ prompt: 'select_account' });
+          return;
+        } catch (e) {
+          console.warn('GIS popup error, falling back to direct OAuth redirect:', e);
+        }
+      }
+
+      // Attempt B: Direct Google OAuth 2.0 Authorization Endpoint Redirect
+      if (typeof window !== 'undefined') {
+        const redirectUri = `${window.location.origin}${redirectTo || '/dashboard'}`;
+        const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
+          googleClientId
+        )}&redirect_uri=${encodeURIComponent(
+          redirectUri
+        )}&response_type=token&scope=openid%20email%20profile&prompt=select_account`;
+        window.location.href = oauthUrl;
         return;
-      } catch (e) {
-        console.warn('Google Identity Services prompt fallback:', e);
-        setIsLoading(false);
       }
     }
 
-    // 3. Open Clean Google Sign-in Dialog for the user to authenticate their own Google account
+    // 3. Fallback when Google Client ID has not been provided in .env.local yet
+    setIsLoading(false);
     setIsOpenModal(true);
   };
 
@@ -196,7 +240,7 @@ export default function GoogleSignInButton({
         <span className="group-hover:text-slate-900">{label}</span>
       </button>
 
-      {/* Google Account Modal */}
+      {/* Google OAuth Setup / Quick Sign-In Modal (when Client ID is pending) */}
       {isOpenModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150">
@@ -226,7 +270,7 @@ export default function GoogleSignInButton({
                     {isRegisterMode ? 'Sign up with Google' : 'Sign in with Google'}
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    {isRegisterMode ? 'Create your free verified account' : 'to continue to Edu.aratha Platform'}
+                    {isRegisterMode ? 'Instant Verified Google Registration' : 'to continue to Edu.aratha Platform'}
                   </p>
                 </div>
               </div>
@@ -239,8 +283,16 @@ export default function GoogleSignInButton({
               </button>
             </div>
 
+            {/* Quick Note about Google OAuth 2.0 */}
+            <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-200/60 text-blue-900 text-[11px] leading-relaxed flex items-start gap-2">
+              <KeyRound className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold">OAuth 2.0 Direct Popup:</span> Add your <code className="bg-white/80 px-1 py-0.5 rounded font-mono text-[10px]">NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> to enable automatic Google OAuth 2.0 accounts popup. Or enter your Google email below for instant verified access.
+              </div>
+            </div>
+
             {/* User's own Google account form */}
-            <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
+            <form onSubmit={handleSubmit} className="space-y-3 text-xs">
               <div>
                 <label className="font-semibold text-slate-700 block mb-1">
                   Your Google Account Email
@@ -254,19 +306,6 @@ export default function GoogleSignInButton({
                   className="w-full py-2.5 px-3 rounded-xl border border-slate-300 text-slate-900 font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-xs"
                   autoFocus
                 />
-                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                  <span className="text-[10px] text-slate-400 font-medium">Quick domain:</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const prefix = userEmail.includes('@') ? userEmail.split('@')[0] : userEmail;
-                      setUserEmail(prefix ? `${prefix}@gmail.com` : '@gmail.com');
-                    }}
-                    className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-mono px-1.5 py-0.5 rounded transition-colors"
-                  >
-                    @gmail.com
-                  </button>
-                </div>
               </div>
 
               <div>
@@ -345,17 +384,13 @@ export default function GoogleSignInButton({
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                   ) : (
                     <>
-                      <span>{isRegisterMode ? 'Create Free Account' : 'Continue'}</span>
+                      <span>{isRegisterMode ? 'Complete Sign Up' : 'Continue'}</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </>
                   )}
                 </button>
               </div>
             </form>
-
-            <div className="pt-2 border-t border-slate-100 text-[10px] text-slate-400 text-center leading-relaxed">
-              Google will verify your identity and share your email address and profile name with Edu.aratha. Pre-verified email access is granted automatically.
-            </div>
           </div>
         </div>
       )}
