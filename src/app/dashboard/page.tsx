@@ -16,7 +16,8 @@ import {
   ArrowRight,
   User,
   Quote,
-  LogOut
+  LogOut,
+  Mail
 } from 'lucide-react';
 import {
   getCurrentUser,
@@ -88,6 +89,27 @@ export default function DashboardPage() {
         isOpen={Boolean(activeCite)}
         onClose={() => setActiveCite(null)}
       />
+
+      {/* Email Verification Required Alert */}
+      {user && user.emailVerified === false && (
+        <div className="bg-amber-500 text-amber-950 px-4 py-3 border-b border-amber-600/30">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <Mail className="w-4 h-4 text-amber-950 shrink-0" />
+              <span>
+                <strong>Email Verification Required:</strong> Please verify your academic email (<code>{user.email}</code>) to permanently unlock saved citations, bookmarks, and learning paths.
+              </span>
+            </div>
+            <Link
+              href={`/verify-email?email=${encodeURIComponent(user.email)}`}
+              className="px-3 py-1.5 rounded-lg bg-amber-950 text-white font-bold text-xs hover:bg-black transition-colors self-start sm:self-auto shrink-0 flex items-center gap-1.5"
+            >
+              <span>Verify Email Now</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* User Banner */}
       <div className="bg-white border-b border-slate-200 py-10 px-4 sm:px-6 lg:px-8">

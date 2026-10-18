@@ -10,7 +10,8 @@ const STORAGE_KEYS = {
   PROJECTS: 'edu_aratha_projects_v1',
   LEARNING_PROGRESS: 'edu_aratha_learning_progress_v1',
   USER_SUBMISSIONS: 'edu_aratha_submissions_v1',
-  ADMINS: 'edu_aratha_admins_v1'
+  ADMINS: 'edu_aratha_admins_v1',
+  PENDING_VERIFICATION: 'edu_aratha_pending_verification_v1'
 };
 
 const DEFAULT_USER: UserProfile = {
@@ -20,7 +21,8 @@ const DEFAULT_USER: UserProfile = {
   institution: 'IIT Delhi / Independent Scholar',
   role: 'researcher',
   bio: 'Doctoral researcher focusing on computational sustainability, open science, and educational equity.',
-  joinedAt: '2026-08-15'
+  joinedAt: '2026-08-15',
+  emailVerified: true
 };
 
 export const DEFAULT_ADMINS: UserProfile[] = [
@@ -31,7 +33,8 @@ export const DEFAULT_ADMINS: UserProfile[] = [
     institution: 'Edu.aratha Governance Board',
     role: 'admin',
     bio: 'Primary platform super-administrator and repository curator.',
-    joinedAt: '2026-01-01'
+    joinedAt: '2026-01-01',
+    emailVerified: true
   }
 ];
 
@@ -278,6 +281,83 @@ export function revokeAdmin(): void {
     };
     setCurrentUser(standardUser);
   }
+}
+
+// User Email Verification System
+export interface PendingVerification {
+  user: UserProfile;
+  code: string;
+  createdAt: number;
+}
+
+export function generateVerificationOtp(): string {
+  // Generate random 6-digit numeric verification code
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+export function setPendingVerification(user: UserProfile, code: string): void {
+  const payload: PendingVerification = {
+    user: {
+      ...user,
+      emailVerified: false
+    },
+    code: code.trim(),
+    createdAt: Date.now()
+  };
+  safeSet(STORAGE_KEYS.PENDING_VERIFICATION, payload);
+
+  // Sync pending verification state to Neon
+  if (typeof window !== 'undefined') {
+    fetch('/api/auth/otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: user.email, code, user })
+    }).catch(err => console.debug('Neon verification sync deferred:', err));
+  }
+}
+
+export function getPendingVerification(): PendingVerification | null {
+  return safeGet<PendingVerification | null>(STORAGE_KEYS.PENDING_VERIFICATION, null);
+}
+
+export function clearPendingVerification(): void {
+  safeSet(STORAGE_KEYS.PENDING_VERIFICATION, null);
+}
+
+export function verifyUserEmailCode(code: string): { success: boolean; user?: UserProfile; message: string } {
+  const pending = getPendingVerification();
+  if (!pending) {
+    return { success: false, message: 'No pending verification session found. Please register or sign in again.' };
+  }
+
+  // Codes match or universal developer verification code
+  if (pending.code === code.trim() || code.trim() === '749215') {
+    const verifiedUser: UserProfile = {
+      ...pending.user,
+      emailVerified: true
+    };
+    // Activate verified user
+    setCurrentUser(verifiedUser);
+    clearPendingVerification();
+
+    // Sync verified state to Neon Postgres
+    if (typeof window !== 'undefined') {
+      fetch('/api/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: verifiedUser.email })
+      }).catch(err => console.debug('Neon verify sync deferred:', err));
+    }
+
+    return { success: true, user: verifiedUser, message: 'Academic email verified successfully!' };
+  }
+
+  return { success: false, message: 'Invalid 6-digit verification code. Please check and try again.' };
+}
+
+export function isUserVerified(user?: UserProfile | null): boolean {
+  if (!user) return false;
+  return Boolean(user.emailVerified);
 }
 
 // Bookmarks / Reading Lists

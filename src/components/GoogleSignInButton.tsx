@@ -86,7 +86,8 @@ export default function GoogleSignInButton({
       institution: account.institution || 'Google Authenticated Scholar',
       role: isAdmin ? 'admin' : 'researcher',
       bio: 'Verified scholar authenticated via Google Identity Services.',
-      joinedAt: new Date().toISOString().split('T')[0]
+      joinedAt: new Date().toISOString().split('T')[0],
+      emailVerified: true // Pre-verified by Google OAuth
     };
 
     // Save locally

@@ -4,7 +4,13 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { GraduationCap, ArrowRight, ShieldCheck } from 'lucide-react';
-import { setCurrentUser, createNewAdmin, ADMIN_PASSCODE } from '@/lib/storage';
+import {
+  setCurrentUser,
+  createNewAdmin,
+  setPendingVerification,
+  generateVerificationOtp,
+  ADMIN_PASSCODE
+} from '@/lib/storage';
 import { UserProfile } from '@/types';
 import GoogleSignInButton from '@/components/GoogleSignInButton';
 
@@ -29,27 +35,37 @@ export default function RegisterPage() {
         return;
       }
 
-      const newAdmin = createNewAdmin({
+      const pendingAdmin: UserProfile = {
+        id: `usr-admin-${Date.now()}`,
         name: name.trim(),
         email: email.trim(),
         institution: institution.trim() || 'Edu.aratha Academic Repository Board',
-        bio: 'Platform administrator registered with security key clearance.'
-      });
-      setCurrentUser(newAdmin);
-      router.push('/admin');
+        role: 'admin',
+        bio: 'Platform administrator registered with security key clearance.',
+        joinedAt: new Date().toISOString().split('T')[0],
+        emailVerified: false
+      };
+
+      const otp = generateVerificationOtp();
+      setPendingVerification(pendingAdmin, otp);
+      router.push(`/verify-email?email=${encodeURIComponent(pendingAdmin.email)}`);
       return;
     }
 
-    const newUser: UserProfile = {
+    const pendingUser: UserProfile = {
       id: `usr-${Date.now()}`,
       name: name.trim() || 'Independent Scholar',
       email: email.trim(),
       institution: institution.trim() || 'Independent Researcher',
       role: academicRole === 'student' ? 'user' : 'researcher',
-      joinedAt: new Date().toISOString().split('T')[0]
+      joinedAt: new Date().toISOString().split('T')[0],
+      emailVerified: false
     };
-    setCurrentUser(newUser);
-    router.push('/dashboard');
+
+    // User verification needed before giving access of platform
+    const otp = generateVerificationOtp();
+    setPendingVerification(pendingUser, otp);
+    router.push(`/verify-email?email=${encodeURIComponent(pendingUser.email)}`);
   };
 
   return (

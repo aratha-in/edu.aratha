@@ -151,6 +151,7 @@ export interface UserProfile {
   bio?: string;
   avatarUrl?: string;
   joinedAt: string;
+  emailVerified?: boolean;
 }
 
 export type CitationStyle =
