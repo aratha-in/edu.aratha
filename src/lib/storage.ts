@@ -14,16 +14,7 @@ const STORAGE_KEYS = {
   PENDING_VERIFICATION: 'edu_aratha_pending_verification_v1'
 };
 
-const DEFAULT_USER: UserProfile = {
-  id: 'usr-demo-01',
-  name: 'Ananya Sharma',
-  email: 'ananya.sharma@iitd.ac.in',
-  institution: 'IIT Delhi / Independent Scholar',
-  role: 'researcher',
-  bio: 'Doctoral researcher focusing on computational sustainability, open science, and educational equity.',
-  joinedAt: '2026-08-15',
-  emailVerified: true
-};
+// Unauthenticated users start as null (guest state)
 
 export const DEFAULT_ADMINS: UserProfile[] = [
   {
@@ -155,7 +146,7 @@ export async function syncResourcesWithNeon(): Promise<Resource[]> {
 export const ADMIN_PASSCODE = process.env.NEXT_PUBLIC_ADMIN_ACCESS_KEY || 'aratha-admin-2026';
 
 export function getCurrentUser(): UserProfile | null {
-  return safeGet<UserProfile | null>(STORAGE_KEYS.USER, DEFAULT_USER);
+  return safeGet<UserProfile | null>(STORAGE_KEYS.USER, null);
 }
 
 export function setCurrentUser(user: UserProfile | null): void {

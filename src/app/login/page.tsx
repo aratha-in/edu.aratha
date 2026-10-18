@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { GraduationCap, ArrowRight, ShieldCheck, User } from 'lucide-react';
+import { GraduationCap, ArrowRight, ShieldCheck } from 'lucide-react';
 import { setCurrentUser, isEmailAuthorizedAdmin, getAuthorizedAdmins, ADMIN_PASSCODE } from '@/lib/storage';
 import { UserProfile } from '@/types';
 import GoogleSignInButton from '@/components/GoogleSignInButton';
@@ -32,20 +32,6 @@ export default function LoginPage() {
     };
     setCurrentUser(loggedInUser);
     router.push(isAdmin ? '/admin' : '/dashboard');
-  };
-
-  const handleInstantDemo = () => {
-    const demoUser: UserProfile = {
-      id: 'usr-demo-01',
-      name: 'Ananya Sharma',
-      email: 'ananya.sharma@iitd.ac.in',
-      institution: 'IIT Delhi / Independent Scholar',
-      role: 'researcher',
-      bio: 'Doctoral researcher in computational sustainability and open access scholarship.',
-      joinedAt: '2026-08-15'
-    };
-    setCurrentUser(demoUser);
-    router.push('/dashboard');
   };
 
   return (
@@ -103,15 +89,6 @@ export default function LoginPage() {
 
         {/* Google Sign-In */}
         <GoogleSignInButton label="Sign In with Google" redirectTo="/dashboard" />
-
-        {/* Demo Scholar Login */}
-        <button
-          onClick={handleInstantDemo}
-          className="w-full py-2.5 px-3 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-semibold transition-colors flex items-center justify-center gap-2"
-        >
-          <User className="w-4 h-4 text-blue-600" />
-          Instant Demo Scholar Sign-In (Ananya Sharma • IIT Delhi)
-        </button>
 
         <p className="text-center text-xs text-slate-500">
           Don&apos;t have an account?{' '}

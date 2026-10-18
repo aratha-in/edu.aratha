@@ -67,6 +67,11 @@ export default function RootLayout({
             gtag('config', 'G-QN4DFQFBLE');
           `}
         </Script>
+        {/* Google Identity Services */}
+        <Script
+          src="https://accounts.google.com/gsi/client"
+          strategy="afterInteractive"
+        />
       </head>
       <body className="min-h-full flex flex-col font-sans bg-slate-50/50 text-slate-900 selection:bg-blue-100 selection:text-blue-900 overflow-x-hidden w-full">
         <Navbar />
