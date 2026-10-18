@@ -15,7 +15,8 @@ import {
   Sparkles,
   ArrowRight,
   User,
-  Quote
+  Quote,
+  LogOut
 } from 'lucide-react';
 import {
   getCurrentUser,
@@ -24,7 +25,8 @@ import {
   getStoredResources,
   updateBookmarkStatus,
   toggleUserBookmark,
-  exportAllUserData
+  exportAllUserData,
+  logoutUser
 } from '@/lib/storage';
 import { UserProfile, UserBookmark, Resource, ResearchProject, ReadingStatus } from '@/types';
 import CitationModal from '@/components/CitationModal';
@@ -121,6 +123,14 @@ export default function DashboardPage() {
             >
               <Download className="w-3.5 h-3.5 text-slate-500" />
               Export My References (JSON)
+            </button>
+            <button
+              onClick={() => logoutUser()}
+              className="px-3.5 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-semibold shadow-2xs flex items-center gap-1.5 transition-colors"
+              title="Sign out of account and return to login"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sign Out</span>
             </button>
           </div>
         </div>

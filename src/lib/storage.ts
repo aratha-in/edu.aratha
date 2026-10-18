@@ -162,10 +162,14 @@ export function setCurrentUser(user: UserProfile | null): void {
   }
 }
 
-export function logoutUser(): void {
+export function logoutUser(redirectToLogin: boolean = true): void {
   safeSet(STORAGE_KEYS.USER, null);
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event('edu_aratha_auth_change'));
+    if (redirectToLogin) {
+      // Hard refresh and redirect directly to /login
+      window.location.href = '/login';
+    }
   }
 }
 

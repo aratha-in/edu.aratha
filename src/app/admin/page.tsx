@@ -44,6 +44,7 @@ import {
   getAuthorizedAdmins,
   createNewAdmin,
   deleteAdminUser,
+  logoutUser,
   ADMIN_PASSCODE
 } from '@/lib/storage';
 import { Resource, VerificationStatus, ResourceType, AccessType, UserProfile } from '@/types';
@@ -203,7 +204,7 @@ export default function AdminDashboardPage() {
   const handleLockAdmin = () => {
     revokeAdmin();
     setIsAuthorized(false);
-    router.push('/');
+    logoutUser();
   };
 
   // Create New Administrator
