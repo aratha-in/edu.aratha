@@ -4,8 +4,9 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { GraduationCap, ArrowRight, ShieldCheck, User } from 'lucide-react';
-import { setCurrentUser } from '@/lib/storage';
+import { setCurrentUser, isEmailAuthorizedAdmin, getAuthorizedAdmins, ADMIN_PASSCODE } from '@/lib/storage';
 import { UserProfile } from '@/types';
+import GoogleSignInButton from '@/components/GoogleSignInButton';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,21 +15,22 @@ export default function LoginPage() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const isAdmin =
-      email.toLowerCase().includes('admin') ||
-      password === 'aratha-admin-2026' ||
-      password === 'admin123' ||
-      password === 'aratha@admin';
+    const authorizedAdmins = getAuthorizedAdmins();
+    const matchedAdmin = authorizedAdmins.find(
+      a => a.email.toLowerCase() === email.trim().toLowerCase()
+    );
+    const hasAdminPass = password === ADMIN_PASSCODE || password === 'aratha-admin-2026';
+    const isAdmin = Boolean(matchedAdmin || (email.toLowerCase().includes('admin') && hasAdminPass));
 
-    const demoUser: UserProfile = {
+    const loggedInUser: UserProfile = matchedAdmin || {
       id: isAdmin ? `usr-admin-${Date.now()}` : `usr-${Date.now()}`,
       name: isAdmin ? 'Platform Administrator' : (email.split('@')[0] || 'Scholar'),
-      email: email || (isAdmin ? 'admin@edu.aratha.org' : 'scholar@edu.aratha.org'),
+      email: email.trim() || (isAdmin ? 'admin@edu.aratha.org' : 'scholar@edu.aratha.org'),
       institution: isAdmin ? 'Edu.aratha Governance & Verification Board' : 'Academic Researcher',
       role: isAdmin ? 'admin' : 'researcher',
       joinedAt: new Date().toISOString().split('T')[0]
     };
-    setCurrentUser(demoUser);
+    setCurrentUser(loggedInUser);
     router.push(isAdmin ? '/admin' : '/dashboard');
   };
 
@@ -44,20 +46,6 @@ export default function LoginPage() {
     };
     setCurrentUser(demoUser);
     router.push('/dashboard');
-  };
-
-  const handleAdminLogin = () => {
-    const adminUser: UserProfile = {
-      id: 'usr-admin-01',
-      name: 'Chief Repository Curator',
-      email: 'admin@edu.aratha.org',
-      institution: 'Edu.aratha Governance & Verification Board',
-      role: 'admin',
-      bio: 'Verified platform administrator with full repository curation authority.',
-      joinedAt: '2026-01-01'
-    };
-    setCurrentUser(adminUser);
-    router.push('/admin');
   };
 
   return (
@@ -110,27 +98,20 @@ export default function LoginPage() {
 
         <div className="relative flex items-center justify-center">
           <div className="border-t border-slate-200 w-full" />
-          <span className="bg-white px-3 text-[11px] text-slate-400 uppercase font-semibold">Or</span>
+          <span className="bg-white px-3 text-[11px] text-slate-400 uppercase font-semibold">Or Continue With</span>
         </div>
 
-        {/* Demo Fast Login */}
-        <div className="space-y-2">
-          <button
-            onClick={handleInstantDemo}
-            className="w-full py-2.5 px-3 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-semibold transition-colors flex items-center justify-center gap-2"
-          >
-            <User className="w-4 h-4 text-blue-600" />
-            Instant Demo Scholar Sign-In (Ananya Sharma • IIT Delhi)
-          </button>
+        {/* Google Sign-In */}
+        <GoogleSignInButton label="Sign In with Google" redirectTo="/dashboard" />
 
-          <button
-            onClick={handleAdminLogin}
-            className="w-full py-2.5 px-3 rounded-xl border border-amber-300/80 bg-amber-50 hover:bg-amber-100/80 text-amber-900 text-xs font-semibold transition-colors flex items-center justify-center gap-2"
-          >
-            <ShieldCheck className="w-4 h-4 text-amber-600" />
-            Administrator Clearance Sign-In (Admin Portal)
-          </button>
-        </div>
+        {/* Demo Scholar Login */}
+        <button
+          onClick={handleInstantDemo}
+          className="w-full py-2.5 px-3 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-semibold transition-colors flex items-center justify-center gap-2"
+        >
+          <User className="w-4 h-4 text-blue-600" />
+          Instant Demo Scholar Sign-In (Ananya Sharma • IIT Delhi)
+        </button>
 
         <p className="text-center text-xs text-slate-500">
           Don&apos;t have an account?{' '}

@@ -58,6 +58,21 @@ async function init() {
   console.log('✓ edu_users table verified.');
 
   await sql`
+    INSERT INTO edu_users (
+      id, email, name, institution, role, bio, joined_at
+    ) VALUES (
+      'usr-admin-primary',
+      'admin@edu.aratha.org',
+      'Chief Platform Administrator',
+      'Edu.aratha Governance Board',
+      'admin',
+      'Primary platform super-administrator and repository curator.',
+      '2026-01-01'
+    ) ON CONFLICT (email) DO UPDATE SET role = 'admin';
+  `;
+  console.log('✓ Primary super administrator seeded into Neon.');
+
+  await sql`
     CREATE TABLE IF NOT EXISTS edu_bookmarks (
       id SERIAL PRIMARY KEY,
       user_id VARCHAR(255) NOT NULL,

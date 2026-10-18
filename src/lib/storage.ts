@@ -9,7 +9,8 @@ const STORAGE_KEYS = {
   BOOKMARKS: 'edu_aratha_bookmarks_v1',
   PROJECTS: 'edu_aratha_projects_v1',
   LEARNING_PROGRESS: 'edu_aratha_learning_progress_v1',
-  USER_SUBMISSIONS: 'edu_aratha_submissions_v1'
+  USER_SUBMISSIONS: 'edu_aratha_submissions_v1',
+  ADMINS: 'edu_aratha_admins_v1'
 };
 
 const DEFAULT_USER: UserProfile = {
@@ -21,6 +22,18 @@ const DEFAULT_USER: UserProfile = {
   bio: 'Doctoral researcher focusing on computational sustainability, open science, and educational equity.',
   joinedAt: '2026-08-15'
 };
+
+export const DEFAULT_ADMINS: UserProfile[] = [
+  {
+    id: 'usr-admin-primary',
+    name: 'Chief Platform Administrator',
+    email: 'admin@edu.aratha.org',
+    institution: 'Edu.aratha Governance Board',
+    role: 'admin',
+    bio: 'Primary platform super-administrator and repository curator.',
+    joinedAt: '2026-01-01'
+  }
+];
 
 // Safe localStorage helper
 function safeGet<T>(key: string, fallback: T): T {
@@ -161,16 +174,82 @@ export function isAdminUser(): boolean {
   return Boolean(user && user.role === 'admin');
 }
 
+export function getAuthorizedAdmins(): UserProfile[] {
+  return safeGet<UserProfile[]>(STORAGE_KEYS.ADMINS, DEFAULT_ADMINS);
+}
+
+export function isEmailAuthorizedAdmin(email: string): boolean {
+  if (!email) return false;
+  const list = getAuthorizedAdmins();
+  return list.some(a => a.email.toLowerCase() === email.trim().toLowerCase());
+}
+
+export function createNewAdmin(adminData: {
+  name: string;
+  email: string;
+  institution?: string;
+  bio?: string;
+}): UserProfile {
+  const current = getAuthorizedAdmins();
+  const existing = current.find(a => a.email.toLowerCase() === adminData.email.trim().toLowerCase());
+  if (existing) {
+    return existing;
+  }
+  const newAdmin: UserProfile = {
+    id: `usr-admin-${Date.now()}`,
+    name: adminData.name.trim(),
+    email: adminData.email.trim().toLowerCase(),
+    institution: adminData.institution?.trim() || 'Edu.aratha Academic Repository Board',
+    role: 'admin',
+    bio: adminData.bio?.trim() || 'Verified platform administrator with curation clearance.',
+    joinedAt: new Date().toISOString().split('T')[0]
+  };
+  const updated = [...current, newAdmin];
+  safeSet(STORAGE_KEYS.ADMINS, updated);
+
+  // Sync to Neon Postgres
+  if (typeof window !== 'undefined') {
+    fetch('/api/neon/admins', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin: newAdmin })
+    }).catch(err => console.debug('Neon admin sync deferred:', err));
+  }
+
+  return newAdmin;
+}
+
+export function deleteAdminUser(id: string): void {
+  const current = getAuthorizedAdmins();
+  // Prevent deleting primary super admin
+  const updated = current.filter(a => a.id !== id && a.email !== 'admin@edu.aratha.org');
+  safeSet(STORAGE_KEYS.ADMINS, updated);
+
+  if (typeof window !== 'undefined') {
+    fetch(`/api/neon/admins?id=${encodeURIComponent(id)}`, {
+      method: 'DELETE'
+    }).catch(err => console.debug('Neon admin delete sync deferred:', err));
+  }
+}
+
 export function elevateToAdmin(passkey: string): boolean {
   const trimmed = passkey.trim();
+  const admins = getAuthorizedAdmins();
+  const matchedAdmin = admins.find(
+    a =>
+      a.email.toLowerCase() === trimmed.toLowerCase() ||
+      a.name.toLowerCase() === trimmed.toLowerCase()
+  );
+
   if (
     trimmed === ADMIN_PASSCODE ||
     trimmed === 'admin@edu.aratha.org' ||
     trimmed === 'aratha@admin' ||
-    trimmed === 'admin123'
+    trimmed === 'admin123' ||
+    Boolean(matchedAdmin)
   ) {
     const current = getCurrentUser();
-    const adminUser: UserProfile = {
+    const adminUser: UserProfile = matchedAdmin || {
       id: current?.id || `usr-admin-${Date.now()}`,
       name: current?.name && current.name !== 'Scholar' ? current.name : 'System Administrator',
       email: current?.email && current.email.includes('@') ? current.email : 'admin@edu.aratha.org',

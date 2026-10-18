@@ -24,7 +24,11 @@ import {
   X,
   Database,
   LogOut,
-  Sparkles
+  Sparkles,
+  Users,
+  UserPlus,
+  UserCheck,
+  Shield
 } from 'lucide-react';
 import {
   getStoredResources,
@@ -37,6 +41,9 @@ import {
   elevateToAdmin,
   revokeAdmin,
   syncResourcesWithNeon,
+  getAuthorizedAdmins,
+  createNewAdmin,
+  deleteAdminUser,
   ADMIN_PASSCODE
 } from '@/lib/storage';
 import { Resource, VerificationStatus, ResourceType, AccessType, UserProfile } from '@/types';
@@ -50,13 +57,26 @@ export default function AdminDashboardPage() {
   const [authError, setAuthError] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-  // Dashboard Data
+  // Active Admin View Tab
+  const [activeTab, setActiveTab] = useState<'catalog' | 'admins'>('catalog');
+
+  // Dashboard Catalog Data
   const [resources, setResources] = useState<Resource[]>([]);
   const [metrics, setMetrics] = useState(getRealMetrics());
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+  // Admin Management State
+  const [adminList, setAdminList] = useState<UserProfile[]>([]);
+  const [isCreateAdminModalOpen, setIsCreateAdminModalOpen] = useState(false);
+  const [newAdminName, setNewAdminName] = useState('');
+  const [newAdminEmail, setNewAdminEmail] = useState('');
+  const [newAdminInstitution, setNewAdminInstitution] = useState('');
+  const [newAdminBio, setNewAdminBio] = useState('');
+  const [createAdminSuccessMsg, setCreateAdminSuccessMsg] = useState('');
+  const [createAdminErrorMsg, setCreateAdminErrorMsg] = useState('');
 
   // Neon DB Connection State
   const [neonStatus, setNeonStatus] = useState<{
@@ -101,6 +121,7 @@ export default function AdminDashboardPage() {
 
     if (hasAdminRole) {
       refreshData();
+      refreshAdmins();
       checkNeonHealth();
     }
   };
@@ -109,6 +130,32 @@ export default function AdminDashboardPage() {
     const list = getStoredResources();
     setResources(list);
     setMetrics(getRealMetrics());
+  };
+
+  const refreshAdmins = async () => {
+    // Load local authorized admins first
+    const localAdmins = getAuthorizedAdmins();
+    setAdminList(localAdmins);
+
+    // Try fetching latest admins from Neon
+    try {
+      const res = await fetch('/api/neon/admins');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.admins) && data.admins.length > 0) {
+          // Merge with primary super admin
+          const merged = [...localAdmins];
+          data.admins.forEach((remote: any) => {
+            if (!merged.some(m => m.email.toLowerCase() === remote.email.toLowerCase())) {
+              merged.push(remote);
+            }
+          });
+          setAdminList(merged);
+        }
+      }
+    } catch {
+      // Offline fallback
+    }
   };
 
   const checkNeonHealth = async () => {
@@ -124,11 +171,11 @@ export default function AdminDashboardPage() {
   const handleSyncWithNeon = async () => {
     setIsSyncingNeon(true);
     try {
-      // First try to initialize schema in case it's a new db
       await fetch('/api/neon/init', { method: 'POST' }).catch(() => {});
       const synced = await syncResourcesWithNeon();
       setResources(synced);
       setMetrics(getRealMetrics());
+      await refreshAdmins();
       await checkNeonHealth();
     } finally {
       setIsSyncingNeon(false);
@@ -159,12 +206,55 @@ export default function AdminDashboardPage() {
     router.push('/');
   };
 
+  // Create New Administrator
+  const handleCreateNewAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateAdminErrorMsg('');
+    setCreateAdminSuccessMsg('');
+
+    if (!newAdminName.trim() || !newAdminEmail.trim()) {
+      setCreateAdminErrorMsg('Name and Email are required.');
+      return;
+    }
+
+    try {
+      const created = createNewAdmin({
+        name: newAdminName,
+        email: newAdminEmail,
+        institution: newAdminInstitution || 'Edu.aratha Academic Repository Board',
+        bio: newAdminBio || 'Verified Platform Administrator with repository curation clearance.'
+      });
+
+      setAdminList(getAuthorizedAdmins());
+      setCreateAdminSuccessMsg(`Administrator ${created.name} (${created.email}) created successfully! Clearance active.`);
+      setNewAdminName('');
+      setNewAdminEmail('');
+      setNewAdminInstitution('');
+      setNewAdminBio('');
+
+      setTimeout(() => {
+        setIsCreateAdminModalOpen(false);
+        setCreateAdminSuccessMsg('');
+      }, 2000);
+    } catch (err: any) {
+      setCreateAdminErrorMsg(err.message || 'Failed to create administrator.');
+    }
+  };
+
+  // Revoke / Delete Administrator
+  const handleDeleteAdmin = (id: string, name: string) => {
+    if (confirm(`Are you sure you want to revoke administrative clearance for ${name}?`)) {
+      deleteAdminUser(id);
+      setAdminList(getAuthorizedAdmins());
+    }
+  };
+
   const handleStatusChange = (id: string, newStatus: VerificationStatus) => {
     updateResourceStatus(id, newStatus);
     refreshData();
   };
 
-  const handleDelete = (id: string) => {
+  const handleDeleteResource = (id: string) => {
     if (confirm('Are you sure you want to remove this resource record from the catalog and database?')) {
       deleteResource(id);
       refreshData();
@@ -255,7 +345,7 @@ export default function AdminDashboardPage() {
           <form onSubmit={handleElevateAdmin} className="space-y-4 pt-2">
             <div>
               <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-                Admin Security Passcode or Authorized Key
+                Admin Security Passcode or Authorized Email
               </label>
               <div className="relative">
                 <KeyRound className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
@@ -263,7 +353,7 @@ export default function AdminDashboardPage() {
                   type="password"
                   value={adminPasskey}
                   onChange={(e) => setAdminPasskey(e.target.value)}
-                  placeholder="Enter administrator security passkey..."
+                  placeholder="Enter administrator passkey or email..."
                   className="w-full bg-slate-800/80 border border-slate-700 rounded-xl py-2.5 pl-10 pr-3 text-xs text-white placeholder:text-slate-500 focus:outline-blue-500 focus:border-blue-500"
                   required
                 />
@@ -350,7 +440,7 @@ export default function AdminDashboardPage() {
               onClick={handleSyncWithNeon}
               disabled={isSyncingNeon}
               className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600/80 hover:bg-blue-600 text-white text-[11px] font-semibold transition-colors"
-              title="Sync local catalog with Neon Postgres"
+              title="Sync catalog and admin records with Neon Postgres"
             >
               <RefreshCw className={`w-3 h-3 ${isSyncingNeon ? 'animate-spin' : ''}`} />
               <span>{isSyncingNeon ? 'Syncing...' : 'Sync Neon'}</span>
@@ -376,20 +466,32 @@ export default function AdminDashboardPage() {
               Administrative Verification Portal
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              Platform Content & Integrity Verification
+              Platform Content & Administrator Governance
             </h1>
             <p className="text-xs text-slate-500 max-w-2xl">
-              Manage repository listings, review link authenticity, update verification timestamps, and ensure strict compliance with open-access standards.
+              Manage repository catalog listings, review link authenticity, create new authorized administrators, and ensure strict compliance with open-access standards.
             </p>
           </div>
 
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-md transition-all self-start md:self-auto"
-          >
-            <Plus className="w-4 h-4" />
-            Add Verified Resource
-          </button>
+          <div className="flex flex-wrap items-center gap-2.5 self-start md:self-auto">
+            {/* Create New Admin Button */}
+            <button
+              onClick={() => setIsCreateAdminModalOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-blue-300 bg-blue-50/80 hover:bg-blue-100 text-blue-700 font-semibold text-xs shadow-xs transition-all"
+            >
+              <UserPlus className="w-4 h-4 text-blue-600" />
+              <span>Create New Admin</span>
+            </button>
+
+            {/* Add Verified Resource Button */}
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-md transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Verified Resource</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -407,156 +509,390 @@ export default function AdminDashboardPage() {
             <div className="text-[11px] text-emerald-700 mt-0.5">Current valid links</div>
           </div>
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+            <span className="text-xs font-bold text-blue-600 uppercase tracking-wider block">Authorized Admins</span>
+            <div className="text-2xl font-extrabold text-blue-600 mt-1">{adminList.length}</div>
+            <div className="text-[11px] text-blue-700 mt-0.5">Clearance active in Neon</div>
+          </div>
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
             <span className="text-xs font-bold text-orange-600 uppercase tracking-wider block">Indian Repositories</span>
             <div className="text-2xl font-extrabold text-orange-600 mt-1">{metrics.indianFocusCount}</div>
             <div className="text-[11px] text-orange-700 mt-0.5">SWAYAM, Shodhganga, data.gov.in</div>
           </div>
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
-            <span className="text-xs font-bold text-blue-600 uppercase tracking-wider block">Open Access Guarantee</span>
-            <div className="text-2xl font-extrabold text-blue-600 mt-1">100%</div>
-            <div className="text-[11px] text-blue-700 mt-0.5">Zero paywalls for discovery</div>
-          </div>
         </div>
 
-        {/* Filter & Search Bar */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-4">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="relative w-full sm:w-96">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search catalog by title or provider..."
-                className="w-full text-xs pl-10 pr-3 py-2 rounded-lg border border-slate-200 focus:outline-blue-600"
-              />
+        {/* View Switcher Tabs: Catalog vs Administrators */}
+        <div className="flex items-center gap-2 border-b border-slate-200 pb-1">
+          <button
+            onClick={() => setActiveTab('catalog')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              activeTab === 'catalog'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <Database className="w-3.5 h-3.5" />
+            <span>Repository Catalog ({filtered.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('admins')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              activeTab === 'admins'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Authorized Administrators ({adminList.length})</span>
+          </button>
+        </div>
+
+        {/* TAB 1: REPOSITORY CATALOG MANAGEMENT */}
+        {activeTab === 'catalog' && (
+          <div className="space-y-6">
+            {/* Filter & Search Bar */}
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-4">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="relative w-full sm:w-96">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                  <input
+                    type="text"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search catalog by title or provider..."
+                    className="w-full text-xs pl-10 pr-3 py-2 rounded-lg border border-slate-200 focus:outline-blue-600"
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="text-xs py-1.5 px-3 rounded-lg border border-slate-200 bg-white text-slate-700"
+                  >
+                    <option value="all">All Verification Statuses</option>
+                    <option value="Verified">Verified</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Needs Review">Needs Review</option>
+                    <option value="Archived">Archived</option>
+                  </select>
+
+                  <select
+                    value={typeFilter}
+                    onChange={(e) => setTypeFilter(e.target.value)}
+                    className="text-xs py-1.5 px-3 rounded-lg border border-slate-200 bg-white text-slate-700"
+                  >
+                    <option value="all">All Resource Types</option>
+                    <option value="course">Course</option>
+                    <option value="paper">Research Paper</option>
+                    <option value="book">Book</option>
+                    <option value="thesis">Thesis</option>
+                    <option value="dataset">Dataset</option>
+                    <option value="tool">Tool</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="text-xs py-1.5 px-3 rounded-lg border border-slate-200 bg-white text-slate-700"
-              >
-                <option value="all">All Verification Statuses</option>
-                <option value="Verified">Verified</option>
-                <option value="Pending">Pending</option>
-                <option value="Needs Review">Needs Review</option>
-                <option value="Archived">Archived</option>
-              </select>
+            {/* Resource Management Table */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
+                <h3 className="text-sm font-bold text-slate-800">
+                  Repository Index Records ({filtered.length})
+                </h3>
+                <span className="text-xs text-slate-500">Live Neon persistence active</span>
+              </div>
 
-              <select
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-                className="text-xs py-1.5 px-3 rounded-lg border border-slate-200 bg-white text-slate-700"
-              >
-                <option value="all">All Resource Types</option>
-                <option value="course">Course</option>
-                <option value="paper">Research Paper</option>
-                <option value="book">Book</option>
-                <option value="thesis">Thesis</option>
-                <option value="dataset">Dataset</option>
-                <option value="tool">Tool</option>
-              </select>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-100/70 text-slate-600 font-semibold">
+                      <th className="py-3 px-4">Title & Details</th>
+                      <th className="py-3 px-4">Type</th>
+                      <th className="py-3 px-4">Repository</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4">Last Verified</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filtered.map((res) => (
+                      <tr key={res.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3.5 px-4 max-w-xs sm:max-w-md">
+                          <div className="font-semibold text-slate-900 line-clamp-1">{res.title}</div>
+                          <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
+                            <span>{res.subject}</span>
+                            {res.indiaFocus && (
+                              <span className="text-orange-600 font-bold">🇮🇳 India Focus</span>
+                            )}
+                            {res.isFeatured && (
+                              <span className="text-blue-600 font-bold">★ Featured</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 whitespace-nowrap capitalize text-slate-600 font-medium">
+                          {res.resourceType}
+                        </td>
+                        <td className="py-3.5 px-4 whitespace-nowrap text-slate-700 font-medium">
+                          {res.provider}
+                        </td>
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <select
+                            value={res.verificationStatus}
+                            onChange={(e) => handleStatusChange(res.id, e.target.value as VerificationStatus)}
+                            className={`text-[11px] font-semibold py-1 px-2.5 rounded-full border ${
+                              res.verificationStatus === 'Verified'
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                : res.verificationStatus === 'Pending'
+                                ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                : res.verificationStatus === 'Needs Review'
+                                ? 'bg-red-50 text-red-800 border-red-300'
+                                : 'bg-slate-100 text-slate-600 border-slate-300'
+                            }`}
+                          >
+                            <option value="Verified">Verified</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Needs Review">Needs Review</option>
+                            <option value="Archived">Archived</option>
+                          </select>
+                        </td>
+                        <td className="py-3.5 px-4 whitespace-nowrap text-slate-500 font-mono text-[11px]">
+                          {res.lastVerifiedAt}
+                        </td>
+                        <td className="py-3.5 px-4 whitespace-nowrap text-right space-x-2">
+                          <a
+                            href={res.officialUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                            title="Open External URL"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                          <button
+                            onClick={() => handleDeleteResource(res.id)}
+                            className="inline-flex p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            title="Delete Resource"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Resource Management Table */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
-            <h3 className="text-sm font-bold text-slate-800">
-              Repository Index Records ({filtered.length})
-            </h3>
-            <span className="text-xs text-slate-500">Live persistence active</span>
-          </div>
+        {/* TAB 2: AUTHORIZED ADMINISTRATOR GOVERNANCE */}
+        {activeTab === 'admins' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+              <div className="p-6 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-blue-600" />
+                    <span>Authorized Platform Administrators</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    These accounts have verified administrative clearance to curate repositories and manage platform integrity.
+                  </p>
+                </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-100/70 text-slate-600 font-semibold">
-                  <th className="py-3 px-4">Title & Details</th>
-                  <th className="py-3 px-4">Type</th>
-                  <th className="py-3 px-4">Repository</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Last Verified</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filtered.map((res) => (
-                  <tr key={res.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3.5 px-4 max-w-xs sm:max-w-md">
-                      <div className="font-semibold text-slate-900 line-clamp-1">{res.title}</div>
-                      <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
-                        <span>{res.subject}</span>
-                        {res.indiaFocus && (
-                          <span className="text-orange-600 font-bold">🇮🇳 India Focus</span>
-                        )}
-                        {res.isFeatured && (
-                          <span className="text-blue-600 font-bold">★ Featured</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4 whitespace-nowrap capitalize text-slate-600 font-medium">
-                      {res.resourceType}
-                    </td>
-                    <td className="py-3.5 px-4 whitespace-nowrap text-slate-700 font-medium">
-                      {res.provider}
-                    </td>
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <select
-                        value={res.verificationStatus}
-                        onChange={(e) => handleStatusChange(res.id, e.target.value as VerificationStatus)}
-                        className={`text-[11px] font-semibold py-1 px-2.5 rounded-full border ${
-                          res.verificationStatus === 'Verified'
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                            : res.verificationStatus === 'Pending'
-                            ? 'bg-amber-50 text-amber-800 border-amber-300'
-                            : res.verificationStatus === 'Needs Review'
-                            ? 'bg-red-50 text-red-800 border-red-300'
-                            : 'bg-slate-100 text-slate-600 border-slate-300'
-                        }`}
-                      >
-                        <option value="Verified">Verified</option>
-                        <option value="Pending">Pending</option>
-                        <option value="Needs Review">Needs Review</option>
-                        <option value="Archived">Archived</option>
-                      </select>
-                    </td>
-                    <td className="py-3.5 px-4 whitespace-nowrap text-slate-500 font-mono text-[11px]">
-                      {res.lastVerifiedAt}
-                    </td>
-                    <td className="py-3.5 px-4 whitespace-nowrap text-right space-x-2">
-                      <a
-                        href={res.officialUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                        title="Open External URL"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                      <button
-                        onClick={() => handleDelete(res.id)}
-                        className="inline-flex p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                        title="Delete Resource"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                <button
+                  onClick={() => setIsCreateAdminModalOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs transition-all shrink-0"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>+ Create New Administrator</span>
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-100/70 text-slate-600 font-semibold">
+                      <th className="py-3 px-4">Administrator Name</th>
+                      <th className="py-3 px-4">Email Address</th>
+                      <th className="py-3 px-4">Institution / Department</th>
+                      <th className="py-3 px-4">Role Clearance</th>
+                      <th className="py-3 px-4">Date Authorized</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {adminList.map((adm) => {
+                      const isSuper = adm.email.toLowerCase() === 'admin@edu.aratha.org';
+                      return (
+                        <tr key={adm.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-700 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                                {adm.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <div className="font-semibold text-slate-900">{adm.name}</div>
+                                <div className="text-[11px] text-slate-400">{adm.bio || 'Platform Administrator'}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 font-mono text-slate-700">
+                            {adm.email}
+                          </td>
+                          <td className="py-3.5 px-4 text-slate-600">
+                            {adm.institution || 'Edu.aratha Governance Board'}
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-[10px] ${
+                              isSuper
+                                ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                : 'bg-blue-100 text-blue-900 border border-blue-300'
+                            }`}>
+                              <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                              {isSuper ? 'SUPER ADMIN' : 'ADMINISTRATOR'}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap text-slate-500 font-mono text-[11px]">
+                            {adm.joinedAt}
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap text-right">
+                            {isSuper ? (
+                              <span className="text-[11px] text-slate-400 italic">Protected</span>
+                            ) : (
+                              <button
+                                onClick={() => handleDeleteAdmin(adm.id, adm.name)}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded text-red-600 hover:bg-red-50 font-semibold transition-colors"
+                                title="Revoke Admin Access"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Revoke</span>
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Add Resource Modal */}
+      {/* MODAL 1: CREATE NEW ADMINISTRATOR */}
+      {isCreateAdminModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+                  <UserPlus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Create New Administrator</h3>
+                  <p className="text-xs text-slate-500">Authorize a new team member with administrative privileges.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsCreateAdminModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {createAdminSuccessMsg && (
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 font-medium">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{createAdminSuccessMsg}</span>
+              </div>
+            )}
+
+            {createAdminErrorMsg && (
+              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                <span>{createAdminErrorMsg}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleCreateNewAdmin} className="space-y-4 text-xs">
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1">Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={newAdminName}
+                  onChange={(e) => setNewAdminName(e.target.value)}
+                  placeholder="e.g. Dr. Aarav Patel"
+                  className="w-full py-2.5 px-3 rounded-lg border border-slate-300 text-slate-900 focus:outline-blue-600"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1">Administrator Email Address *</label>
+                <input
+                  type="email"
+                  required
+                  value={newAdminEmail}
+                  onChange={(e) => setNewAdminEmail(e.target.value)}
+                  placeholder="e.g. aarav.patel@iitd.ac.in"
+                  className="w-full py-2.5 px-3 rounded-lg border border-slate-300 text-slate-900 font-mono focus:outline-blue-600"
+                />
+                <span className="text-[11px] text-slate-400 mt-1 block">
+                  This email will be granted administrative clearance to sign in and curate resources.
+                </span>
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1">University / Organization</label>
+                <input
+                  type="text"
+                  value={newAdminInstitution}
+                  onChange={(e) => setNewAdminInstitution(e.target.value)}
+                  placeholder="e.g. IIT Delhi / Department of Computer Science"
+                  className="w-full py-2.5 px-3 rounded-lg border border-slate-300 text-slate-900 focus:outline-blue-600"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1">Curatorial Area / Notes</label>
+                <textarea
+                  rows={2}
+                  value={newAdminBio}
+                  onChange={(e) => setNewAdminBio(e.target.value)}
+                  placeholder="e.g. Responsible for computer science & engineering course verification..."
+                  className="w-full py-2 px-3 rounded-lg border border-slate-300 text-slate-900 focus:outline-blue-600"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateAdminModalOpen(false)}
+                  className="px-4 py-2.5 rounded-lg border border-slate-300 text-slate-700 font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-xs flex items-center gap-1.5"
+                >
+                  <UserCheck className="w-4 h-4" />
+                  <span>Grant Admin Clearance</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: ADD RESOURCE MODAL */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900">Add New Verified Resource</h3>
               <button
