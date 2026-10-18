@@ -1,0 +1,34 @@
+# Edu.aratha Full AI Context Specification (LLMs-Full)
+URL: https://edu.aratha.org
+Publisher: Edu.aratha Open Initiative
+Mission: Democratizing access to world-class education and scholarly research without financial, geographical, or institutional paywalls.
+
+## Institutional Partners & Data Repositories Indexed
+1. **SWAYAM / NPTEL (India)**:
+   - Coordinated by Ministry of Education, Government of India, IIT Madras, and IISc Bangalore.
+   - Covering engineering, sciences, humanities, management, and vocational disciplines.
+2. **MIT OpenCourseWare (MIT OCW)**:
+   - Over 2,500 MIT undergraduate and graduate courses with complete syllabi, lecture notes, assignments, and exam archives.
+3. **OpenAlex**:
+   - Comprehensive open catalog of global research papers, citation networks, authors, institutions, and open access venues.
+4. **Shodhganga (INFLIBNET Centre, India)**:
+   - Digital repository of Indian electronic theses and dissertations submitted to Indian universities.
+5. **OpenStax (Rice University)**:
+   - Peer-reviewed, openly licensed textbooks tailored for standard introductory college and university courses.
+6. **Data.gov.in (National Data Sharing and Accessibility Portal)**:
+   - Open government data across Indian agriculture, census, economy, health, education, and geospatial sectors.
+7. **DOAJ (Directory of Open Access Journals)**:
+   - Global directory indexing over 20,000 peer-reviewed, open access journals.
+
+## Citation Formats Supported
+- APA 7th Edition: Author, A. A. (Year). Title of work. Publisher / URL.
+- MLA 9th Edition: Author. "Title of Source." Title of Container, Publisher, Year, Location.
+- Harvard Style: Author, Year. Title. Place: Publisher.
+- Chicago 17th Author-Date: Author. Year. Title.
+- IEEE: [1] A. Author, "Title," Journal, vol., no., pp., Year.
+
+## Geolocation & Regional Focus
+- Country: India (Primary) & Global (Secondary)
+- Region: South Asia, Global South, and Worldwide
+- Geo Coordinates: 28.6139° N, 77.2090° E
+- Default Language: English (Indian Academic Standard) & Multilingual Indian Support

@@ -1,0 +1,25 @@
+# Edu.aratha - Global Free Education & Research Discovery Platform
+> A unified open-access academic workspace indexing free courses, peer-reviewed research papers, open textbooks, theses, datasets, and citation tooling for scholars worldwide.
+
+## Overview
+Edu.aratha (https://edu.aratha.org) is an open educational initiative providing free discovery and search across verified global and Indian open-access academic repositories. All listed resources are free, open-access, or public domain.
+
+## Core Features & Sections
+- **Free Online Courses** (/courses): High-quality courses from SWAYAM/NPTEL (IITs & IISc), MIT OpenCourseWare, Harvard Online, Coursera Free Tier, edX Open Audit, and Khan Academy.
+- **Academic Research Papers** (/research): Over 250M+ open access papers, preprints, and journals indexed via OpenAlex, arXiv, PubMed Central, Europe PMC, and DOAJ.
+- **Academic Citation Generator** (/citation-generator): Instant citation formatter supporting APA 7th, MLA 9th, Harvard, Chicago 17th Author-Date, and IEEE styles with BibTeX export.
+- **Open Textbooks** (/books): Free peer-reviewed college textbooks from OpenStax, Directory of Open Access Books (DOAB), and Open Textbook Library.
+- **Theses & Dissertations** (/theses): Doctoral and Master's research repositories including INFLIBNET Shodhganga (India) and OATD.
+- **Open Datasets** (/datasets): Public government and scientific datasets from Data.gov.in, World Bank Open Data, and Zenodo CERN.
+- **Academic Journals** (/journals): Fully open access peer-reviewed journals from DOAJ and Indian Academy of Sciences.
+- **Learning Paths** (/learning-paths): Curated academic curricula from Foundation to Advanced in Computer Science, Data Science, Artificial Intelligence, Economics, and Sustainable Energy.
+
+## Primary Target Audience & Regional Focus
+- Indian undergraduate, postgraduate, and PhD scholars across IITs, NITs, Central Universities, and state colleges.
+- Global researchers, students, faculty, and lifelong learners seeking zero-cost, high-credibility education.
+
+## Technical & Data Standards
+- Canonical URL: https://edu.aratha.org
+- Search API & Sitelinks: https://edu.aratha.org/search?q={query}
+- Open Data Standards: OpenAlex API, INFLIBNET, DOAJ, arXiv API, Data.gov.in API
+- License: Open Access, Creative Commons (CC-BY, CC-BY-SA, CC0)
